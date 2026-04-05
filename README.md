@@ -1,45 +1,92 @@
 # Proxmox Homelab
 
-This repository is the public-facing version of my homelab work. It is intentionally conservative about what gets published.
+Infrastructure-as-code for a self-hosted homelab running on Proxmox VE. Everything is provisioned with Terraform, configured with Ansible, and deployed via GitLab CI/CD running on the cluster itself.
 
-This is a work in progress. The long-term aim is maximum reproducibility and strong security, but the public repo only contains material that is safe to share.
+## Architecture
 
-## What is currently public
+```
+Proxmox VE
+├── bootstrap/
+│   ├── vm-build-01     GitLab runner host — executes all CI/CD pipelines
+│   └── vm-git-01       Self-hosted GitLab CE — source of truth for all deployments
+│
+├── infra/
+│   ├── vm-ai-ubuntu-01     Ollama inference + OpenWebUI, GPU passthrough
+│   ├── vm-apps-01          Mattermost, Synapse, Docmost, OpenWebUI (VLAN 110)
+│   ├── vm-auth-01          Authentik identity provider + Postgres + Redis (VLAN 120)
+│   ├── vm-monitor-01       Grafana, Loki, Mimir, Tempo — full LGTM stack (VLAN 50)
+│   └── vm-nextcloud-01     Nextcloud + Postgres + Redis (VLAN 110)
+│
+└── shared/
+    ├── proxmox-vm-module       Reusable Terraform module for Proxmox VMs
+    ├── proxmox-lxc-module      Reusable Terraform module for Proxmox LXCs
+    └── ansible-common          Shared Ansible roles used by every host
+```
 
-- reusable Terraform modules under `shared/`
-- sanitized VM Terraform roots and host playbooks for selected workload machines
-- selected service payloads with internal edge, DNS, and control-plane details removed
-- top-level documentation and repository guardrails
+## Stack
 
-## Included Code
+| Layer | Technology |
+|---|---|
+| Hypervisor | Proxmox VE |
+| Provisioning | Terraform (`bpg/proxmox` provider) |
+| Configuration | Ansible |
+| CI/CD | Self-hosted GitLab CE + GitLab Runners |
+| Identity | Authentik (OIDC/SAML for all services) |
+| Reverse proxy | Traefik (internal + edge) |
+| Observability | Grafana · Loki · Mimir · Tempo · Alloy |
+| Secret management | HashiCorp Vault |
+| Networking | VLAN segmentation via UniFi |
+| DNS | AdGuard Home (internal) + Cloudflare (external) |
+| PKI | Step CA — internal TLS for all services |
+| AI | Ollama + OpenWebUI + OpenClaw agent |
 
-The current public set intentionally includes only code that stays useful after removing environment-specific control-plane details:
+## Shared Ansible Roles
 
-- reusable Proxmox VM and LXC Terraform modules
-- sanitized VM roots for `vm-ai-ubuntu-01`, `vm-apps-01`, `vm-auth-01`, `vm-monitor-01`, and `vm-nextcloud-01`
-- host-specific Ansible entrypoint playbooks for those workload machines
-- service payloads for Ollama, Vault, Docmost, Mattermost, Nextcloud, OpenWebUI, and Honcho
-- agent-bootstrap helper scripts that do not embed internal registry or routing details
+All VMs pull from `shared/ansible-common`. Five roles ship with every host:
 
-## What is intentionally missing
+- **base** — system hardening, Alloy agent, Node Exporter, Step CA trust, unattended upgrades
+- **deploy_user** — unprivileged deploy user with scoped sudo, SSH key injection
+- **docker_host** — Docker CE, daemon hardening, observability sidecar (metrics + log scraping)
+- **gitlab_runners** — installs and registers GitLab runners with the internal CI
+- **pve_host** — Proxmox-specific hardening: SSH port, no-subscription repo, Alloy integration
 
-The following parts of the real homelab are still excluded from the public repository:
+## Services
 
-- environment-specific bootstrap flows
-- DNS, public edge, and firewall control-plane repositories
-- Cloudflare, platform firewall, and UniFi firewall roots
-- service stacks that still expose ingress, identity, registry, or edge-routing details
-- shared inventories, host variables, and orchestration that encode live environment assumptions
+| Service | Stack | Purpose |
+|---|---|---|
+| [authentik](services/authentik/) | Docker Compose | SSO — all internal services authenticate here |
+| [nextcloud](services/nextcloud/) | Docker Compose | File sync and sharing |
+| [mattermost](services/mattermost/) | Docker Compose | Team messaging |
+| [grafana](services/grafana/) | Docker Compose | Dashboards — queries Loki, Mimir, Tempo |
+| [ollama](services/ollama/) | Docker Compose | Local LLM inference (GPU) |
+| [openwebui](services/openwebui/) | Docker Compose | Chat UI over Ollama, OIDC via Authentik |
+| [docmost](services/docmost/) | Docker Compose | Internal wiki and documentation |
+| [vault](services/vault/) | Docker Compose | Secret storage and dynamic credentials |
+| [honcho](services/honcho/) | Docker Compose | AI agent process manager |
 
-Those paths are omitted because they contain sensitive environment details such as:
+## Terraform Modules
 
-- internal naming, routing, and service mapping details
-- network-policy and reachability rules
-- deployment targets and control-plane assumptions
-- live edge hostnames, public domains, and registry endpoints
+### `shared/proxmox-vm-module`
 
-## Purpose
+Wraps the `bpg/proxmox` provider to provision Ubuntu cloud-init VMs with:
+- static IP + VLAN tag via cloud-init
+- cloud-init SSH key injection
+- configurable disk, CPU, memory
+- consistent tagging
 
-The goal is to share reusable building blocks and the overall direction of the homelab without publishing the live control plane.
+### `shared/proxmox-lxc-module`
 
-Over time I plan to replace more omitted areas with sanitized examples, abstractions, and documentation that improve reproducibility without exposing the active environment.
+Same pattern for LXC containers — used for lightweight infrastructure services (DNS, PKI, PBS, internal services).
+
+## What is not published
+
+The following are excluded because they encode live environment topology or control-plane details:
+
+- Cloudflare DNS Terraform root — public IP and zone ID
+- UniFi firewall Terraform — full zone/policy definitions
+- Platform firewall (Proxmox guest firewall) — per-VM rule sets
+- Ansible inventories and host\_vars — live IPs, vault references
+- Edge and internal Traefik stacks — routing rules and certificate config
+- Mailserver, Synapse, and registry stacks
+
+These may be replaced with sanitized examples over time.
