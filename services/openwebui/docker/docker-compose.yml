@@ -1,0 +1,29 @@
+---
+services:
+  openwebui:
+    # Pinned 2026-04-05 - update deliberately after reviewing upstream tag changes
+    image: docker.io/openwebui/open-webui:0.8.12-slim
+    restart: unless-stopped
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://192.168.20.10:11434}
+      WEBUI_AUTH: "true"
+      WEBUI_NAME: "Home AI"
+      OAUTH_CLIENT_ID: ${OPENWEBUI_OIDC_CLIENT_ID}
+      OAUTH_CLIENT_SECRET: ${OPENWEBUI_OIDC_CLIENT_SECRET}
+      OPENID_PROVIDER_URL: ${OPENWEBUI_OPENID_PROVIDER_URL:-https://auth.example.internal/application/o/openwebui/.well-known/openid-configuration}
+      OAUTH_PROVIDER_NAME: ${OPENWEBUI_OAUTH_PROVIDER_NAME:-Authentik}
+    ports:
+      - "8080:8080"
+    volumes:
+      - openwebui_data:/app/backend/data
+    networks:
+      - openwebui
+
+volumes:
+  openwebui_data:
+    name: apps-01_openwebui_data
+
+networks:
+  openwebui:
+    name: apps-01_openwebui
+    driver: bridge

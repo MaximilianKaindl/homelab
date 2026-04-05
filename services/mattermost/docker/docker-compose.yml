@@ -1,0 +1,53 @@
+---
+services:
+  mattermost-db:
+    # Pinned 2026-03-15 — update deliberately after reviewing changelog
+    image: docker.io/library/postgres:16.13-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mattermost
+      POSTGRES_PASSWORD: ${MATTERMOST_DB_PASSWORD}
+      POSTGRES_DB: mattermost
+    volumes:
+      - mattermost_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mattermost"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mattermost
+
+  mattermost:
+    # Pinned 2026-03-15 — update deliberately after reviewing changelog
+    image: mattermost/mattermost-team-edition:9.11.0
+    restart: unless-stopped
+    environment:
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      MM_SQLSETTINGS_DATASOURCE: postgres://mattermost:${MATTERMOST_DB_PASSWORD}@mattermost-db:5432/mattermost?sslmode=disable
+      MM_SERVICESETTINGS_SITEURL: ${MATTERMOST_SITE_URL:-https://chat.example.internal}
+      MM_SERVICESETTINGS_ENABLEOAUTHSERVICEPROVIDER: "true"
+      MM_SERVICESETTINGS_ENABLEEMAILINVITATIONS: "false"
+    volumes:
+      - mattermost_data:/mattermost/data
+      - mattermost_logs:/mattermost/logs
+    ports:
+      - "8065:8065"
+    depends_on:
+      mattermost-db:
+        condition: service_healthy
+    networks:
+      - mattermost
+
+volumes:
+  mattermost_db:
+    name: apps-01_mattermost_db
+  mattermost_data:
+    name: apps-01_mattermost_data
+  mattermost_logs:
+    name: apps-01_mattermost_logs
+
+networks:
+  mattermost:
+    name: apps-01_mattermost
+    driver: bridge

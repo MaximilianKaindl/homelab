@@ -1,0 +1,107 @@
+---
+services:
+  postgres:
+    image: docker.io/library/postgres:16.13-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      POSTGRES_DB: nextcloud
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nextcloud"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  redis:
+    image: docker.io/library/redis:7.4-alpine
+    restart: unless-stopped
+    command: --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+
+  nextcloud:
+    # Pinned 2026-03-15 — update deliberately after reviewing changelog
+    # Nextcloud 29 reached EOL April 2025. Bumped to 32.x (Hub 25 Autumn).
+    # For a FRESH install, deploy 32.0.6 directly.
+    # For an EXISTING 29.x install, you MUST upgrade sequentially:
+    #   29.0.16 → 30.0.17 → 31.0.14 → 32.0.6
+    image: docker.io/library/nextcloud:32.0.6-apache
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      POSTGRES_DB: nextcloud
+      REDIS_HOST: redis
+      NEXTCLOUD_ADMIN_USER: admin
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${NEXTCLOUD_TRUSTED_DOMAINS:-nextcloud.example.internal}
+      TRUSTED_PROXIES: ${NEXTCLOUD_TRUSTED_PROXIES:-127.0.0.1}
+      OVERWRITEHOST: ${NEXTCLOUD_OVERWRITEHOST:-nextcloud.example.internal}
+      OVERWRITEPROTOCOL: https
+      OVERWRITECLIURL: ${NEXTCLOUD_OVERWRITECLIURL:-https://nextcloud.example.internal}
+      NEXTCLOUD_DATA_DIR: /mnt/data
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_SECURE: tls
+      SMTP_NAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
+      MAIL_DOMAIN: ${MAIL_DOMAIN}
+      PHP_MEMORY_LIMIT: 512M
+      PHP_UPLOAD_LIMIT: 10G
+    volumes:
+      - nextcloud_app:/var/www/html
+      - ${NEXTCLOUD_DATA_PATH:-/mnt/nextcloud-data/nextcloud-data}:/mnt/data
+    ports:
+      - "80:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+      - external
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSL http://localhost/status.php | grep -q '\"installed\":true'"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  cron:
+    # Must match nextcloud service version exactly
+    # Pinned 2026-03-15 — update deliberately after reviewing changelog
+    image: docker.io/library/nextcloud:32.0.6-apache
+    restart: unless-stopped
+    volumes:
+      - nextcloud_app:/var/www/html
+      - ${NEXTCLOUD_DATA_PATH:-/mnt/nextcloud-data/nextcloud-data}:/mnt/data
+    entrypoint: /cron.sh
+    depends_on:
+      nextcloud:
+        condition: service_healthy
+    networks:
+      - internal
+
+volumes:
+  postgres_data:
+    name: nextcloud-01_postgres_data
+  redis_data:
+    name: nextcloud-01_redis_data
+  nextcloud_app:
+    name: nextcloud-01_nextcloud_app
+
+networks:
+  internal:
+    name: nextcloud-01_internal
+    driver: bridge
+    internal: true
+  external:
+    name: nextcloud-01_external
+    driver: bridge

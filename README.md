@@ -8,6 +8,7 @@ This is a work in progress. The long-term aim is maximum reproducibility and str
 
 - reusable Terraform modules under `shared/`
 - selected real code that is useful without exposing live environment topology
+- selected bootstrap host-prep code and shared Ansible building blocks
 - top-level documentation and repository guardrails
 
 ## Included Code
@@ -15,11 +16,15 @@ This is a work in progress. The long-term aim is maximum reproducibility and str
 The current public set intentionally includes only code that remains useful after removing environment-specific control-plane details:
 
 - reusable Proxmox VM and LXC Terraform modules
+- bootstrap playbooks for `build-01` and `git-01`
 - an AI-host helper for container sandbox authorization
 - an NVIDIA + Ollama host setup playbook
 - a small Ollama service payload
+- a few additional service payloads with sanitized endpoints and routing details
 - a Vault service payload with policy and seed examples
-- agent-bootstrap helper scripts that do not embed internal registry or routing details
+- agent-bootstrap helper code with placeholder registry and GitLab endpoints
+- example VM and LXC Terraform roots wired to the shared public modules
+- shared Ansible roles and playbooks without inventories, host vars, or edge-specific orchestration
 
 ## What is intentionally missing
 
@@ -27,8 +32,9 @@ The following parts of the real homelab are currently excluded from the public r
 
 - environment-specific bootstrap flows
 - infrastructure environment roots and network-specific control layers
-- service deployment stacks and ingress wiring
-- shared operational automation that contains internal addressing or host assumptions
+- service deployment stacks that still expose edge or control-plane details
+- DNS, public-edge, and firewall control-plane repositories
+- shared inventories, host variables, and orchestration that encode live environment assumptions
 
 Those paths are omitted because they contain sensitive environment details such as:
 
@@ -36,6 +42,7 @@ Those paths are omitted because they contain sensitive environment details such 
 - internal naming, routing, and service mapping details
 - network-policy and reachability rules
 - deployment targets and internal routing assumptions
+- live edge hostnames, public domains, and registry endpoints
 
 ## Purpose
 

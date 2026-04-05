@@ -1,0 +1,61 @@
+---
+services:
+  docmost-db:
+    # Pinned 2026-03-15 — update deliberately after reviewing changelog
+    image: docker.io/library/postgres:16.13-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: docmost
+      POSTGRES_PASSWORD: ${DOCMOST_DB_PASSWORD}
+      POSTGRES_DB: docmost
+    volumes:
+      - docmost_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docmost"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docmost
+
+  docmost-redis:
+    # Pinned 2026-03-15 — update deliberately after reviewing changelog
+    image: docker.io/library/redis:7.4-alpine
+    restart: unless-stopped
+    command: --save 60 1
+    volumes:
+      - docmost_redis:/data
+    networks:
+      - docmost
+
+  docmost:
+    # Pinned 2026-03-15 — update deliberately after reviewing changelog
+    image: docmost/docmost:0.3.28
+    restart: unless-stopped
+    environment:
+      APP_URL: ${DOCMOST_APP_URL:-https://docs.example.internal}
+      APP_SECRET: ${DOCMOST_APP_SECRET}
+      DATABASE_URL: postgresql://docmost:${DOCMOST_DB_PASSWORD}@docmost-db:5432/docmost
+      REDIS_URL: redis://docmost-redis:6379
+    ports:
+      - "3000:3000"
+    depends_on:
+      docmost-db:
+        condition: service_healthy
+    volumes:
+      - docmost_storage:/app/data/storage
+    networks:
+      - docmost
+
+volumes:
+  docmost_db:
+    name: apps-01_docmost_db
+  docmost_redis:
+    name: apps-01_docmost_redis
+  docmost_storage:
+    name: apps-01_docmost_storage
+
+networks:
+  docmost:
+    name: apps-01_docmost
+    driver: bridge

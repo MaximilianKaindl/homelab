@@ -45,5 +45,6 @@ The GitLab pipeline:
 
 ## Notes
 
+- This public copy uses placeholder registry and GitLab endpoints where the live environment uses internal service URLs.
 - This repo expects the gateway container to already be running from `homelab/services/openclaw`.
 - If an agent sandbox is not running yet, the deploy fails fast so the missing container can be fixed explicitly.
