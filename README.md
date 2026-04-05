@@ -14,15 +14,15 @@ This is a work in progress. The long-term aim is maximum reproducibility and str
 The following parts of the real homelab are currently excluded from the public repository:
 
 - environment-specific bootstrap flows
-- infrastructure roots for VMs, LXCs, DNS, and firewall policy
-- service deployment stacks and reverse-proxy routing
+- infrastructure environment roots and network-specific control layers
+- service deployment stacks and ingress wiring
 - shared operational automation that contains internal addressing or host assumptions
 
 Those paths are omitted because they contain sensitive environment details such as:
 
 - private IP ranges and host addressing
-- internal DNS names and DNS record mappings
-- firewall policy, zone layout, and service reachability rules
+- internal naming, routing, and service mapping details
+- network-policy and reachability rules
 - deployment targets and internal routing assumptions
 
 ## Purpose

@@ -31,10 +31,9 @@ override.tf.json
 *.enc
 
 # Certificates and trust stores
-traefik/certs/
-traefik/*.crt
-traefik/*.key
-traefik/.env
+*/certs/
+*.crt
+*.key
 
 # Private inventories and vault material
 **/inventories/
@@ -58,15 +57,23 @@ __pycache__/
 # Service-specific local files
 openclaw/deploy/
 services/mailserver/docker/mailserver.env
-bootstrap/vm-git-01/docker/.env
+bootstrap/**/.env
 
 # Public repo exclusions
-# These paths contain environment-specific network topology, DNS records,
-# firewall policy, host addressing, and deployment details.
-bootstrap/
-infra/
-services/
-traefik/
+# These paths contain environment-specific topology, addressing,
+# routing, control-plane, and deployment details.
+bootstrap/*
+!bootstrap/README.md
+
+infra/*
+!infra/README.md
+
+services/*
+!services/README.md
+
+traefik/*
+!traefik/README.md
+
 shared/ansible-common/
 shared/gitlab-cicd-group-vars.yml
 shared/terraform-ci-template.yml
