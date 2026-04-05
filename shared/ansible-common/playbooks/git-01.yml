@@ -1,0 +1,8 @@
+---
+# git-01: host prep only. GitLab itself runs in Docker and is not managed here.
+- name: Prepare git-01 host
+  hosts: code
+  gather_facts: true
+  roles:
+    - base
+    - docker_host

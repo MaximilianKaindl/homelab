@@ -1,0 +1,8 @@
+---
+- name: Configure build-01 (Docker + GitLab Runners)
+  hosts: build
+  gather_facts: true
+  roles:
+    - base
+    - docker_host
+    - gitlab_runners

@@ -1,0 +1,25 @@
+---
+timezone: Europe/Berlin
+locale: en_US.UTF-8
+
+ssh_port: 22
+ssh_permit_root_login: "no"
+ssh_password_auth: "no"
+
+fail2ban_bantime: 3600
+fail2ban_maxretry: 5
+fail2ban_findtime: 600
+
+alloy_version: "1.7.0"
+alloy_user: alloy
+node_exporter_version: "1.8.2"
+
+# Sysctl hardening — Docker hosts MUST override ip_forward to "1"
+# via group_vars or host_vars (set base_sysctls or extra_sysctls).
+base_sysctls:
+  - { key: net.ipv4.ip_forward,        value: "0" }
+  - { key: net.ipv4.conf.all.rp_filter, value: "1" }
+  - { key: net.ipv4.tcp_syncookies,     value: "1" }
+  - { key: kernel.kptr_restrict,        value: "2" }
+  - { key: kernel.dmesg_restrict,       value: "1" }
+extra_sysctls: []

@@ -3,27 +3,25 @@
 ## Purpose
 Web UI for local AI services.
 
-This repository is the deployable payload for one service. It should stay focused on that service's container definition, configuration files, and any service-specific CI that ships the docker/ directory to its target host.
+This repository is the deployable payload for one service. It stays focused on that service's container definition, configuration files, and any service-specific automation that ships the `docker/` directory to its target host.
 
 ## Repository Layout
-- docker/
-- README.md
-- .gitlab-ci.yml
+- `docker/`
+- `README.md`
+- optional CI configuration
 
 ### Docker Payload
-- docker-compose.yml
+- `docker-compose.yml`
 
-### CI/CD Variables
-- `ANSIBLE_SSH_PRIVATE_KEY`
-- `SSH_KNOWN_HOSTS`
+### Runtime Inputs
 - `OPENWEBUI_OIDC_CLIENT_ID`
 - `OPENWEBUI_OIDC_CLIENT_SECRET`
 
 ## Deployment Model
 - The service repo owns the container payload.
-- The target machine is prepared separately by the matching bootstrap or infra repo.
-- Secrets belong in GitLab CI/CD variables or host-local env files, not in tracked plaintext files.
-- CI is limited to protected `main` and deploys directly to the explicit target host.
+- The target machine is prepared separately by the matching infra repo.
+- Secrets belong in CI variables or host-local env files, not in tracked plaintext files.
+- Deployment automation should keep the target host explicit.
 
 ## What Belongs Here
 - Compose files and service-local configuration.
@@ -37,6 +35,5 @@ This repository is the deployable payload for one service. It should stay focuse
 
 ## Operational Notes
 - Target host assumption for this service: apps-01.
-- Deployment path assumption: `/opt/openwebui`.
-- Ollama upstream is configurable through `OLLAMA_BASE_URL`.
-- Review the compose file before each image or port change because these repos are intentionally small and direct.
+- Ollama upstream assumption: `http://192.168.20.10:11434`.
+- The published OIDC endpoint uses a generic placeholder so the live identity endpoint is not exposed.

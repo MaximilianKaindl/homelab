@@ -1,0 +1,193 @@
+---
+services:
+  honcho-db:
+    image: pgvector/pgvector:pg15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${HONCHO_POSTGRES_DB:-honcho}
+      POSTGRES_USER: ${HONCHO_POSTGRES_USER:-honcho}
+      POSTGRES_PASSWORD: ${HONCHO_POSTGRES_PASSWORD:-honcho}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - honcho-pgdata:/var/lib/postgresql/data
+    networks:
+      - ai
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${HONCHO_POSTGRES_USER:-honcho} -d ${HONCHO_POSTGRES_DB:-honcho}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  honcho-redis:
+    image: redis:8.2
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+    volumes:
+      - honcho-redis-data:/data
+    networks:
+      - ai
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - redis-cli ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  honcho:
+    image: ghcr.io/plastic-labs/honcho:latest
+    restart: unless-stopped
+    depends_on:
+      honcho-db:
+        condition: service_healthy
+      honcho-redis:
+        condition: service_healthy
+    environment:
+      DB_CONNECTION_URI: postgresql+psycopg://${HONCHO_POSTGRES_USER:-honcho}:${HONCHO_POSTGRES_PASSWORD:-honcho}@honcho-db:5432/${HONCHO_POSTGRES_DB:-honcho}
+      CACHE_URL: redis://honcho-redis:6379/0?suppress=true
+      LLM_ANTHROPIC_API_KEY: ${LLM_ANTHROPIC_API_KEY:-}
+      LLM_OPENAI_API_KEY: ${LLM_OPENAI_API_KEY:-}
+      LLM_GEMINI_API_KEY: ${LLM_GEMINI_API_KEY:-}
+      LLM_GROQ_API_KEY: ${LLM_GROQ_API_KEY:-}
+      DIALECTIC_PROVIDER: ${DIALECTIC_PROVIDER:-}
+      DIALECTIC_MODEL: ${DIALECTIC_MODEL:-}
+      DIALECTIC_PERFORM_QUERY_GENERATION: ${DIALECTIC_PERFORM_QUERY_GENERATION:-}
+      DIALECTIC_QUERY_GENERATION_PROVIDER: ${DIALECTIC_QUERY_GENERATION_PROVIDER:-}
+      DIALECTIC_QUERY_GENERATION_MODEL: ${DIALECTIC_QUERY_GENERATION_MODEL:-}
+      DIALECTIC_LEVELS__minimal__PROVIDER: ${DIALECTIC_LEVELS__minimal__PROVIDER:-}
+      DIALECTIC_LEVELS__minimal__MODEL: ${DIALECTIC_LEVELS__minimal__MODEL:-}
+      DIALECTIC_LEVELS__minimal__THINKING_BUDGET_TOKENS: ${DIALECTIC_LEVELS__minimal__THINKING_BUDGET_TOKENS:-}
+      DIALECTIC_LEVELS__minimal__MAX_TOOL_ITERATIONS: ${DIALECTIC_LEVELS__minimal__MAX_TOOL_ITERATIONS:-}
+      DIALECTIC_LEVELS__minimal__MAX_OUTPUT_TOKENS: ${DIALECTIC_LEVELS__minimal__MAX_OUTPUT_TOKENS:-}
+      DIALECTIC_LEVELS__minimal__TOOL_CHOICE: ${DIALECTIC_LEVELS__minimal__TOOL_CHOICE:-}
+      DIALECTIC_LEVELS__low__PROVIDER: ${DIALECTIC_LEVELS__low__PROVIDER:-}
+      DIALECTIC_LEVELS__low__MODEL: ${DIALECTIC_LEVELS__low__MODEL:-}
+      DIALECTIC_LEVELS__low__THINKING_BUDGET_TOKENS: ${DIALECTIC_LEVELS__low__THINKING_BUDGET_TOKENS:-}
+      DIALECTIC_LEVELS__low__MAX_TOOL_ITERATIONS: ${DIALECTIC_LEVELS__low__MAX_TOOL_ITERATIONS:-}
+      DIALECTIC_LEVELS__low__TOOL_CHOICE: ${DIALECTIC_LEVELS__low__TOOL_CHOICE:-}
+      DIALECTIC_LEVELS__medium__PROVIDER: ${DIALECTIC_LEVELS__medium__PROVIDER:-}
+      DIALECTIC_LEVELS__medium__MODEL: ${DIALECTIC_LEVELS__medium__MODEL:-}
+      DIALECTIC_LEVELS__medium__THINKING_BUDGET_TOKENS: ${DIALECTIC_LEVELS__medium__THINKING_BUDGET_TOKENS:-}
+      DIALECTIC_LEVELS__medium__MAX_TOOL_ITERATIONS: ${DIALECTIC_LEVELS__medium__MAX_TOOL_ITERATIONS:-}
+      DIALECTIC_LEVELS__high__PROVIDER: ${DIALECTIC_LEVELS__high__PROVIDER:-}
+      DIALECTIC_LEVELS__high__MODEL: ${DIALECTIC_LEVELS__high__MODEL:-}
+      DIALECTIC_LEVELS__high__THINKING_BUDGET_TOKENS: ${DIALECTIC_LEVELS__high__THINKING_BUDGET_TOKENS:-}
+      DIALECTIC_LEVELS__high__MAX_TOOL_ITERATIONS: ${DIALECTIC_LEVELS__high__MAX_TOOL_ITERATIONS:-}
+      DIALECTIC_LEVELS__max__PROVIDER: ${DIALECTIC_LEVELS__max__PROVIDER:-}
+      DIALECTIC_LEVELS__max__MODEL: ${DIALECTIC_LEVELS__max__MODEL:-}
+      DIALECTIC_LEVELS__max__THINKING_BUDGET_TOKENS: ${DIALECTIC_LEVELS__max__THINKING_BUDGET_TOKENS:-}
+      DIALECTIC_LEVELS__max__MAX_TOOL_ITERATIONS: ${DIALECTIC_LEVELS__max__MAX_TOOL_ITERATIONS:-}
+      DIALECTIC_LEVELS_LOW_PROVIDER: ${DIALECTIC_LEVELS_LOW_PROVIDER:-}
+      DIALECTIC_LEVELS_LOW_MODEL: ${DIALECTIC_LEVELS_LOW_MODEL:-}
+      DIALECTIC_LEVELS_MEDIUM_PROVIDER: ${DIALECTIC_LEVELS_MEDIUM_PROVIDER:-}
+      DIALECTIC_LEVELS_MEDIUM_MODEL: ${DIALECTIC_LEVELS_MEDIUM_MODEL:-}
+      DIALECTIC_LEVELS_HIGH_PROVIDER: ${DIALECTIC_LEVELS_HIGH_PROVIDER:-}
+      DIALECTIC_LEVELS_HIGH_MODEL: ${DIALECTIC_LEVELS_HIGH_MODEL:-}
+      DERIVER_PROVIDER: ${DERIVER_PROVIDER:-}
+      DERIVER_MODEL: ${DERIVER_MODEL:-}
+      PEER_CARD_PROVIDER: ${PEER_CARD_PROVIDER:-}
+      PEER_CARD_MODEL: ${PEER_CARD_MODEL:-}
+      SUMMARY_PROVIDER: ${SUMMARY_PROVIDER:-}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-}
+      DREAM_PROVIDER: ${DREAM_PROVIDER:-}
+      DREAM_MODEL: ${DREAM_MODEL:-}
+    networks:
+      - ai
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/openapi.json')
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  honcho-deriver:
+    image: ghcr.io/plastic-labs/honcho:latest
+    restart: unless-stopped
+    command:
+      - python
+      - -m
+      - src.deriver
+    depends_on:
+      honcho-db:
+        condition: service_healthy
+      honcho-redis:
+        condition: service_healthy
+    environment:
+      DB_CONNECTION_URI: postgresql+psycopg://${HONCHO_POSTGRES_USER:-honcho}:${HONCHO_POSTGRES_PASSWORD:-honcho}@honcho-db:5432/${HONCHO_POSTGRES_DB:-honcho}
+      CACHE_URL: redis://honcho-redis:6379/0?suppress=true
+      LLM_ANTHROPIC_API_KEY: ${LLM_ANTHROPIC_API_KEY:-}
+      LLM_OPENAI_API_KEY: ${LLM_OPENAI_API_KEY:-}
+      LLM_GEMINI_API_KEY: ${LLM_GEMINI_API_KEY:-}
+      LLM_GROQ_API_KEY: ${LLM_GROQ_API_KEY:-}
+      DIALECTIC_PROVIDER: ${DIALECTIC_PROVIDER:-}
+      DIALECTIC_MODEL: ${DIALECTIC_MODEL:-}
+      DIALECTIC_PERFORM_QUERY_GENERATION: ${DIALECTIC_PERFORM_QUERY_GENERATION:-}
+      DIALECTIC_QUERY_GENERATION_PROVIDER: ${DIALECTIC_QUERY_GENERATION_PROVIDER:-}
+      DIALECTIC_QUERY_GENERATION_MODEL: ${DIALECTIC_QUERY_GENERATION_MODEL:-}
+      DIALECTIC_LEVELS__minimal__PROVIDER: ${DIALECTIC_LEVELS__minimal__PROVIDER:-}
+      DIALECTIC_LEVELS__minimal__MODEL: ${DIALECTIC_LEVELS__minimal__MODEL:-}
+      DIALECTIC_LEVELS__minimal__THINKING_BUDGET_TOKENS: ${DIALECTIC_LEVELS__minimal__THINKING_BUDGET_TOKENS:-}
+      DIALECTIC_LEVELS__minimal__MAX_TOOL_ITERATIONS: ${DIALECTIC_LEVELS__minimal__MAX_TOOL_ITERATIONS:-}
+      DIALECTIC_LEVELS__minimal__MAX_OUTPUT_TOKENS: ${DIALECTIC_LEVELS__minimal__MAX_OUTPUT_TOKENS:-}
+      DIALECTIC_LEVELS__minimal__TOOL_CHOICE: ${DIALECTIC_LEVELS__minimal__TOOL_CHOICE:-}
+      DIALECTIC_LEVELS__low__PROVIDER: ${DIALECTIC_LEVELS__low__PROVIDER:-}
+      DIALECTIC_LEVELS__low__MODEL: ${DIALECTIC_LEVELS__low__MODEL:-}
+      DIALECTIC_LEVELS__low__THINKING_BUDGET_TOKENS: ${DIALECTIC_LEVELS__low__THINKING_BUDGET_TOKENS:-}
+      DIALECTIC_LEVELS__low__MAX_TOOL_ITERATIONS: ${DIALECTIC_LEVELS__low__MAX_TOOL_ITERATIONS:-}
+      DIALECTIC_LEVELS__low__TOOL_CHOICE: ${DIALECTIC_LEVELS__low__TOOL_CHOICE:-}
+      DIALECTIC_LEVELS__medium__PROVIDER: ${DIALECTIC_LEVELS__medium__PROVIDER:-}
+      DIALECTIC_LEVELS__medium__MODEL: ${DIALECTIC_LEVELS__medium__MODEL:-}
+      DIALECTIC_LEVELS__medium__THINKING_BUDGET_TOKENS: ${DIALECTIC_LEVELS__medium__THINKING_BUDGET_TOKENS:-}
+      DIALECTIC_LEVELS__medium__MAX_TOOL_ITERATIONS: ${DIALECTIC_LEVELS__medium__MAX_TOOL_ITERATIONS:-}
+      DIALECTIC_LEVELS__high__PROVIDER: ${DIALECTIC_LEVELS__high__PROVIDER:-}
+      DIALECTIC_LEVELS__high__MODEL: ${DIALECTIC_LEVELS__high__MODEL:-}
+      DIALECTIC_LEVELS__high__THINKING_BUDGET_TOKENS: ${DIALECTIC_LEVELS__high__THINKING_BUDGET_TOKENS:-}
+      DIALECTIC_LEVELS__high__MAX_TOOL_ITERATIONS: ${DIALECTIC_LEVELS__high__MAX_TOOL_ITERATIONS:-}
+      DIALECTIC_LEVELS__max__PROVIDER: ${DIALECTIC_LEVELS__max__PROVIDER:-}
+      DIALECTIC_LEVELS__max__MODEL: ${DIALECTIC_LEVELS__max__MODEL:-}
+      DIALECTIC_LEVELS__max__THINKING_BUDGET_TOKENS: ${DIALECTIC_LEVELS__max__THINKING_BUDGET_TOKENS:-}
+      DIALECTIC_LEVELS__max__MAX_TOOL_ITERATIONS: ${DIALECTIC_LEVELS__max__MAX_TOOL_ITERATIONS:-}
+      DIALECTIC_LEVELS_LOW_PROVIDER: ${DIALECTIC_LEVELS_LOW_PROVIDER:-}
+      DIALECTIC_LEVELS_LOW_MODEL: ${DIALECTIC_LEVELS_LOW_MODEL:-}
+      DIALECTIC_LEVELS_MEDIUM_PROVIDER: ${DIALECTIC_LEVELS_MEDIUM_PROVIDER:-}
+      DIALECTIC_LEVELS_MEDIUM_MODEL: ${DIALECTIC_LEVELS_MEDIUM_MODEL:-}
+      DIALECTIC_LEVELS_HIGH_PROVIDER: ${DIALECTIC_LEVELS_HIGH_PROVIDER:-}
+      DIALECTIC_LEVELS_HIGH_MODEL: ${DIALECTIC_LEVELS_HIGH_MODEL:-}
+      DERIVER_PROVIDER: ${DERIVER_PROVIDER:-}
+      DERIVER_MODEL: ${DERIVER_MODEL:-}
+      PEER_CARD_PROVIDER: ${PEER_CARD_PROVIDER:-}
+      PEER_CARD_MODEL: ${PEER_CARD_MODEL:-}
+      SUMMARY_PROVIDER: ${SUMMARY_PROVIDER:-}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-}
+      DREAM_PROVIDER: ${DREAM_PROVIDER:-}
+      DREAM_MODEL: ${DREAM_MODEL:-}
+    networks:
+      - ai
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import pathlib; raise SystemExit(0 if "src.deriver" in pathlib.Path("/proc/1/cmdline").read_text() else 1)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  ai:
+    name: ai-ubuntu-01_ai
+    external: true
+
+volumes:
+  honcho-pgdata:
+  honcho-redis-data:

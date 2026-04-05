@@ -1,0 +1,42 @@
+---
+# Prepare Docker hosts: base + docker_host role
+# Actual service deployment is done by GitLab CI runners via docker compose
+- name: Prepare Docker hosts
+  hosts: identity:pub_apps:monitor:compute
+  gather_facts: true
+  roles:
+    - base
+    - docker_host
+
+- name: Prepare deploy service account on CI-managed Docker hosts
+  hosts: identity:pub_apps:monitor:compute
+  gather_facts: false
+  roles:
+    - deploy_user
+
+- name: Mount data disks where needed
+  hosts: nextcloud-01:monitor-01:ai-ubuntu-01
+  gather_facts: true
+  tasks:
+    - name: Create ext4 filesystem on data disk
+      community.general.filesystem:
+        fstype: ext4
+        dev: "{{ data_disk_device }}"
+      when: data_disk_device is defined
+      ignore_errors: true
+
+    - name: Create mount point
+      ansible.builtin.file:
+        path: "{{ data_disk_mount }}"
+        state: directory
+        mode: "0755"
+      when: data_disk_mount is defined
+
+    - name: Mount data disk
+      ansible.posix.mount:
+        path: "{{ data_disk_mount }}"
+        src: "{{ data_disk_device }}"
+        fstype: ext4
+        opts: defaults,noatime
+        state: mounted
+      when: data_disk_device is defined and data_disk_mount is defined

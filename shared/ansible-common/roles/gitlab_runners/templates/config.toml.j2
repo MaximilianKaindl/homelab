@@ -1,0 +1,52 @@
+concurrent = {{ runner_concurrent }}
+check_interval = {{ runner_check_interval }}
+shutdown_timeout = 0
+
+[session_server]
+  session_timeout = 1800
+
+{% for runner in gitlab_runners %}
+[[runners]]
+  name = "{{ runner.name }}-{{ inventory_hostname }}"
+  url = "{{ gitlab_url }}"
+  token = "{{ runner.token }}"
+  executor = "docker"
+  limit = {{ runner.concurrent | default(2) }}
+{% if runner.clone_url is defined %}
+  clone_url = "{{ runner.clone_url }}"
+{% endif %}
+{% if runner.environment is defined %}
+  environment = [{{ runner.environment | map('tojson') | join(', ') }}]
+{% endif %}
+
+  [runners.docker]
+    image = "{{ runner.docker_image }}"
+{% if runner.name == 'runner-dind' and sysbox_enabled %}
+    runtime = "sysbox-runc"
+    privileged = false
+{% else %}
+    privileged = {{ runner.privileged | default(false) | lower }}
+{% endif %}
+    disable_entrypoint_overwrite = false
+    oom_kill_disable = false
+    disable_cache = false
+{% if runner.dns is defined %}
+    dns = [{{ runner.dns | map('tojson') | join(', ') }}]
+{% endif %}
+{% if runner.dns_search is defined %}
+    dns_search = [{{ runner.dns_search | map('tojson') | join(', ') }}]
+{% endif %}
+{% if runner.extra_hosts is defined %}
+    extra_hosts = [{{ runner.extra_hosts | map('tojson') | join(', ') }}]
+{% endif %}
+    volumes = [{{ runner.volumes | map('tojson') | join(', ') }}]
+    network_mode = "bridge"
+    shm_size = 0
+{% if runner.allowed_images is defined %}
+    allowed_images = [{{ runner.allowed_images | map('tojson') | join(', ') }}]
+{% endif %}
+{% if runner.allowed_services is defined %}
+    allowed_services = [{{ runner.allowed_services | map('tojson') | join(', ') }}]
+{% endif %}
+
+{% endfor %}

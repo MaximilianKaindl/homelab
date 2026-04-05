@@ -1,0 +1,96 @@
+---
+- name: Deploy /etc/network/interfaces
+  ansible.builtin.template:
+    src: interfaces.j2
+    dest: /etc/network/interfaces
+    owner: root
+    mode: "0644"
+  register: interfaces_changed
+
+- name: Check running bridge PVID
+  ansible.builtin.slurp:
+    src: /sys/class/net/vmbr0/bridge/default_pvid
+  register: running_pvid
+  failed_when: false
+
+- name: Mark reload needed if file is correct but running PVID differs (stale-apply)
+  ansible.builtin.set_fact:
+    interfaces_changed: "{{ interfaces_changed | combine({'changed': true}) }}"
+  when:
+    - not interfaces_changed.changed
+    - running_pvid.content is defined
+    - (running_pvid.content | b64decode | trim) != "999"
+
+- name: Apply network config now
+  ansible.builtin.command: ifreload -a
+  when: interfaces_changed.changed
+
+- name: Configure /etc/resolv.conf
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver {{ dns_server }}
+      search {{ search_domain }}
+    mode: "0644"
+
+- name: Configure no-subscription apt sources
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list
+    content: |
+      deb http://ftp.debian.org/debian bookworm main contrib
+      deb http://ftp.debian.org/debian bookworm-updates main contrib
+      deb http://security.debian.org bookworm-security main contrib
+    mode: "0644"
+
+- name: Remove enterprise subscription repo
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/pve-enterprise.list
+    state: absent
+
+- name: Add PVE no-subscription repo
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/pve-no-subscription.list
+    content: |
+      deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription
+    mode: "0644"
+
+- name: Apply sysctl hardening
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop:
+    - { key: net.ipv4.ip_forward,         value: "1" }  # required for VLAN routing
+    - { key: net.ipv6.conf.all.disable_ipv6, value: "1" }
+    - { key: kernel.kptr_restrict,         value: "2" }
+    - { key: kernel.dmesg_restrict,        value: "1" }
+
+- name: Deploy SSH hardening config
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/hardening.conf
+    content: |
+      # --- SSH Hardening ---
+      Port 22022
+      MaxAuthTries 3
+      PermitRootLogin prohibit-password
+      PasswordAuthentication no
+      ClientAliveCountMax 2
+      X11Forwarding no
+      AllowTcpForwarding no
+    mode: "0644"
+  notify: restart ssh
+
+- name: Install and configure Grafana Alloy
+  ansible.builtin.import_tasks: alloy.yml
+  tags: alloy
+
+- name: Validate IOMMU groups exist
+  ansible.builtin.stat:
+    path: /sys/kernel/iommu_groups
+  register: iommu_groups
+
+- name: Warn if IOMMU not enabled
+  ansible.builtin.debug:
+    msg: "WARNING: IOMMU groups not found. GPU passthrough may not work."
+  when: not iommu_groups.stat.exists or iommu_groups.stat.isdir is not defined

@@ -1,0 +1,23 @@
+---
+docker_log_max_size: 10m
+docker_log_max_file: "3"
+docker_userns_remap: default
+portainer_agent_enabled: true
+portainer_agent_image: portainer/agent:2.40.0
+portainer_agent_port: 9001
+portainer_agent_deploy_path: /opt/portainer-agent
+portainer_agent_host_management: false
+portainer_agent_secret: ""
+observability_docker_proxy_enabled: true
+observability_docker_proxy_image: tecnativa/docker-socket-proxy:0.3
+observability_docker_proxy_deploy_path: /opt/observability-docker-proxy
+observability_docker_proxy_bind_address: 127.0.0.1
+observability_docker_proxy_port: 2375
+docker_metrics_bind_address: 127.0.0.1:9323
+docker_host_nvidia_enabled: false
+docker_host_nvidia_require_ollama_compatible_driver: true
+docker_host_nvidia_min_driver_branch: 531
+docker_host_nvidia_prefer_server_driver: true
+docker_host_nvidia_container_toolkit_repo: >-
+  deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg]
+  https://nvidia.github.io/libnvidia-container/stable/deb/amd64 /

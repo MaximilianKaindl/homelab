@@ -1,0 +1,9 @@
+---
+deploy_user_enabled: true
+deploy_user_name: deploy
+deploy_user_shell: /bin/bash
+deploy_user_groups:
+  - docker
+deploy_user_key: "{{ deploy_ssh_public_key | default('') }}"
+deploy_user_directories: []
+deploy_user_files: []

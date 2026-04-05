@@ -1,0 +1,123 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Set locale
+  ansible.builtin.lineinfile:
+    path: /etc/locale.gen
+    regexp: '^#?\s*{{ locale }}'
+    line: '{{ locale }} UTF-8'
+    create: true
+    mode: "0644"
+  notify: generate locale
+
+- name: Set default locale
+  ansible.builtin.copy:
+    dest: /etc/default/locale
+    content: "LANG={{ locale }}\n"
+    mode: "0644"
+
+- name: Configure /etc/resolv.conf
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver {{ dns_server }}
+      search {{ search_domain }}
+    mode: "0644"
+
+- name: Ensure qemu-guest-agent is installed and running
+  ansible.builtin.apt:
+    name: qemu-guest-agent
+    state: present
+    update_cache: true
+  notify: restart qemu-guest-agent
+  when: ansible_virtualization_type != 'lxc'
+
+- name: Enable qemu-guest-agent
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    state: started
+    enabled: true
+  when: ansible_virtualization_type != 'lxc'
+
+- name: Configure unattended-upgrades
+  ansible.builtin.apt:
+    name:
+      - unattended-upgrades
+      - apt-listchanges
+    state: present
+
+- name: Deploy unattended-upgrades config
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+        "${distro_id}:${distro_codename}-security";
+      };
+      Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+      Unattended-Upgrade::Automatic-Reboot "false";
+    mode: "0644"
+
+- name: Harden SSH config
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin {{ ssh_permit_root_login }}' }
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication {{ ssh_password_auth }}' }
+    - { regexp: '^#?ChallengeResponseAuthentication', line: 'ChallengeResponseAuthentication no' }
+    - { regexp: '^#?UsePAM', line: 'UsePAM yes' }
+    - { regexp: '^#?AllowAgentForwarding', line: 'AllowAgentForwarding no' }
+    - { regexp: '^#?X11Forwarding', line: 'X11Forwarding no' }
+  notify: restart ssh
+
+- name: Install fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+
+- name: Deploy fail2ban jail config
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/sshd.conf
+    content: |
+      [sshd]
+      enabled  = true
+      port     = {{ ssh_port }}
+      maxretry = {{ fail2ban_maxretry }}
+      bantime  = {{ fail2ban_bantime }}
+      findtime = {{ fail2ban_findtime }}
+    mode: "0644"
+  notify: restart fail2ban
+
+- name: Enable fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
+
+- name: Install Step CA root cert
+  ansible.builtin.include_tasks: step_ca.yml
+
+- name: Apply sysctl hardening
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop: "{{ base_sysctls + extra_sysctls }}"
+  ignore_errors: true  # some sysctls absent on certain kernels
+
+- name: Install and configure Grafana Alloy
+  ansible.builtin.import_tasks: alloy.yml
+  tags: alloy
+
+- name: Install node_exporter
+  ansible.builtin.include_tasks: node_exporter.yml

@@ -1,0 +1,63 @@
+# Proxmox network interfaces — managed by Ansible
+
+auto lo
+iface lo inet loopback
+
+auto nic0
+iface nic0 inet manual
+
+auto vmbr0
+iface vmbr0 inet manual
+        bridge-ports nic0
+        bridge-stp off
+        bridge-fd 0
+        bridge-vlan-aware yes
+        bridge-vids 10-200 999
+        bridge-pvid 999
+
+auto vmbr0.80
+iface vmbr0.80 inet static
+        address 192.168.80.10/24
+        gateway 192.168.80.1
+
+auto vmbr0.10
+iface vmbr0.10 inet manual
+        vlan-raw-device vmbr0
+
+auto vmbr0.20
+iface vmbr0.20 inet manual
+        vlan-raw-device vmbr0
+
+auto vmbr0.30
+iface vmbr0.30 inet manual
+        vlan-raw-device vmbr0
+
+auto vmbr0.40
+iface vmbr0.40 inet manual
+        vlan-raw-device vmbr0
+
+auto vmbr0.50
+iface vmbr0.50 inet manual
+        vlan-raw-device vmbr0
+
+auto vmbr0.60
+iface vmbr0.60 inet manual
+        vlan-raw-device vmbr0
+
+auto vmbr0.70
+iface vmbr0.70 inet manual
+        vlan-raw-device vmbr0
+
+auto vmbr0.100
+iface vmbr0.100 inet manual
+        vlan-raw-device vmbr0
+
+auto vmbr0.110
+iface vmbr0.110 inet manual
+        vlan-raw-device vmbr0
+
+auto vmbr0.120
+iface vmbr0.120 inet manual
+        vlan-raw-device vmbr0
+
+source /etc/network/interfaces.d/*

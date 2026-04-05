@@ -1,0 +1,7 @@
+---
+# Apply base hardening to all managed VMs (not proxmox host)
+- name: Base hardening
+  hosts: all:!proxmox
+  gather_facts: true
+  roles:
+    - base

@@ -1,0 +1,166 @@
+// Grafana Alloy config for {{ inventory_hostname }}
+
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+// Log collection
+
+local.file_match "var_log" {
+  path_targets = [
+    {"__path__" = "/var/log/syslog",       "job" = "syslog"},
+    {"__path__" = "/var/log/auth.log",     "job" = "auth"},
+    {"__path__" = "/var/log/kern.log",     "job" = "kernel"},
+    {"__path__" = "/var/log/fail2ban.log", "job" = "fail2ban"},
+  ]
+}
+
+loki.source.file "var_log" {
+  targets    = local.file_match.var_log.targets
+  forward_to = [loki.write.default.receiver]
+}
+
+{% if alloy_additional_log_targets | default([]) | length > 0 %}
+local.file_match "extra_logs" {
+  path_targets = [
+{% for target in alloy_additional_log_targets %}
+    {"__path__" = "{{ target.path }}", "job" = "{{ target.job }}"},
+{% endfor %}
+  ]
+}
+
+loki.source.file "extra_logs" {
+  targets    = local.file_match.extra_logs.targets
+  forward_to = [loki.write.default.receiver]
+}
+{% endif %}
+
+loki.source.journal "journal" {
+  forward_to    = [loki.relabel.journal.receiver]
+  relabel_rules = loki.relabel.journal.rules
+}
+
+loki.relabel "journal" {
+  forward_to = [loki.write.default.receiver]
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+
+  rule {
+    source_labels = ["__journal__hostname"]
+    target_label  = "host"
+  }
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "job"
+  }
+
+  rule {
+    source_labels = ["__journal__syslog_identifier"]
+    target_label  = "identifier"
+  }
+}
+
+{% if alloy_docker_logs_enabled | default(false) %}
+discovery.docker "containers" {
+  host = "{{ alloy_docker_host }}"
+}
+
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.+)"
+    target_label  = "container"
+    replacement   = "$1"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(docker-observability-socket-proxy|portainer_agent)"
+    action        = "drop"
+  }
+}
+
+loki.source.docker "containers" {
+  host = "{{ alloy_docker_host }}"
+  targets = discovery.relabel.docker_logs.output
+  labels = {
+    host = "{{ inventory_hostname }}",
+    job  = "integrations/docker",
+  }
+  forward_to = [loki.write.default.receiver]
+}
+{% endif %}
+
+loki.write "default" {
+  endpoint {
+    url = "{{ loki_url }}/loki/api/v1/push"
+    // tenant_id is enforced by lgtm-gateway based on source IP
+  }
+  external_labels = {
+    host = "{{ inventory_hostname }}",
+  }
+}
+
+// Metrics collection
+
+prometheus.exporter.unix "node" {}
+
+discovery.relabel "node" {
+  targets = prometheus.exporter.unix.node.targets
+
+  rule {
+    target_label = "instance"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "integrations/node_exporter"
+  }
+}
+
+prometheus.scrape "node" {
+  targets         = discovery.relabel.node.output
+  forward_to      = [prometheus.remote_write.mimir.receiver]
+  scrape_interval = "60s"
+}
+
+{% if alloy_additional_metrics_targets | default([]) | length > 0 %}
+prometheus.scrape "extra_metrics" {
+  targets = [
+{% for target in alloy_additional_metrics_targets %}
+    {
+      __address__ = "{{ target.address }}",
+      instance    = "{{ inventory_hostname }}",
+      job         = "{{ target.job }}",
+    },
+{% endfor %}
+  ]
+  forward_to      = [prometheus.remote_write.mimir.receiver]
+  scrape_interval = "60s"
+}
+{% endif %}
+
+prometheus.remote_write "mimir" {
+  endpoint {
+    url = "{{ mimir_url }}/api/v1/push"
+    // X-Scope-OrgID is enforced by lgtm-gateway based on source IP
+  }
+}

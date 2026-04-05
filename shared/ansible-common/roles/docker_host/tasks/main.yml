@@ -1,0 +1,308 @@
+---
+- name: Install Docker dependencies
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+
+- name: Install NVIDIA GPU support prerequisites
+  ansible.builtin.apt:
+    name:
+      - ubuntu-drivers-common
+      - gnupg
+    state: present
+    update_cache: true
+  when: docker_host_nvidia_enabled
+
+- name: Ensure APT keyring directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/apt/keyrings
+    - /usr/share/keyrings
+
+- name: Add Docker GPG key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+
+- name: Add Docker APT repo
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu
+      {{ ansible_facts["distribution_release"] }} stable
+    filename: docker
+    state: present
+
+- name: Discover GPGPU-capable NVIDIA driver packages recommended by Ubuntu
+  ansible.builtin.command:
+    argv:
+      - ubuntu-drivers
+      - list
+      - --gpgpu
+  register: docker_host_nvidia_driver_candidates
+  changed_when: false
+  when: docker_host_nvidia_enabled
+
+- name: Discover general NVIDIA driver packages recommended by Ubuntu
+  ansible.builtin.command:
+    argv:
+      - ubuntu-drivers
+      - list
+  register: docker_host_nvidia_driver_candidates_general
+  changed_when: false
+  when: docker_host_nvidia_enabled
+
+- name: Consolidate NVIDIA driver candidate lines
+  ansible.builtin.set_fact:
+    docker_host_nvidia_candidate_lines: >-
+      {{
+        (
+          docker_host_nvidia_driver_candidates.stdout_lines +
+          docker_host_nvidia_driver_candidates_general.stdout_lines
+        )
+        | map('split', ',')
+        | map('first')
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | list
+      }}
+  when: docker_host_nvidia_enabled
+
+- name: Classify proprietary NVIDIA driver candidates
+  ansible.builtin.set_fact:
+    docker_host_nvidia_server_driver_candidates: >-
+      {{
+        docker_host_nvidia_candidate_lines
+        | select('match', '^nvidia-driver-[0-9]+-server$')
+        | reject('search', '-open$')
+        | list
+      }}
+    docker_host_nvidia_generic_driver_candidates: >-
+      {{
+        docker_host_nvidia_candidate_lines
+        | select('match', '^nvidia-driver-[0-9]+$')
+        | reject('search', '-open$')
+        | list
+      }}
+  when: docker_host_nvidia_enabled
+
+- name: Select proprietary NVIDIA driver package
+  ansible.builtin.set_fact:
+    docker_host_nvidia_driver_package: >-
+      {{
+        (
+          (docker_host_nvidia_server_driver_candidates | sort | last)
+          if (docker_host_nvidia_server_driver_candidates | length > 0)
+          else
+          (
+            (docker_host_nvidia_generic_driver_candidates | sort | last)
+            if (docker_host_nvidia_generic_driver_candidates | length > 0)
+            else ''
+          )
+        )
+      }}
+  when: docker_host_nvidia_enabled
+
+- name: Fail if Ubuntu does not offer a supported proprietary NVIDIA driver
+  ansible.builtin.assert:
+    that:
+      - docker_host_nvidia_driver_package | length > 0
+    fail_msg: >-
+      No proprietary NVIDIA driver package was returned by `ubuntu-drivers list
+      --gpgpu` or `ubuntu-drivers list`. This role intentionally avoids the
+      `-open` driver flavor because GTX 1080 Ti is a Pascal GPU and needs
+      proprietary kernel modules. Candidates seen: {{
+      docker_host_nvidia_candidate_lines | join(', ') if
+      (docker_host_nvidia_candidate_lines | length > 0) else 'none' }}.
+  when: docker_host_nvidia_enabled
+
+- name: Derive matching NVIDIA package names
+  ansible.builtin.set_fact:
+    docker_host_nvidia_driver_branch: "{{ docker_host_nvidia_driver_package | regex_search('[0-9]+') }}"
+    docker_host_nvidia_driver_uses_server_suffix: "{{ docker_host_nvidia_driver_package.endswith('-server') }}"
+    docker_host_nvidia_utils_package: >-
+      nvidia-utils-{{ docker_host_nvidia_driver_package | regex_search('[0-9]+') }}{{ '-server' if docker_host_nvidia_driver_package.endswith('-server') else '' }}
+  when: docker_host_nvidia_enabled
+
+- name: Fail if Ubuntu only offers an Ollama-incompatible NVIDIA driver branch
+  ansible.builtin.assert:
+    that:
+      - not docker_host_nvidia_require_ollama_compatible_driver or
+        (docker_host_nvidia_driver_branch | int) >= docker_host_nvidia_min_driver_branch
+    fail_msg: >-
+      Ollama requires NVIDIA driver version {{ docker_host_nvidia_min_driver_branch }}
+      or newer, but Ubuntu only offered branch {{ docker_host_nvidia_driver_branch }}.
+  when: docker_host_nvidia_enabled
+
+- name: Install proprietary NVIDIA driver and utilities
+  ansible.builtin.apt:
+    name:
+      - "{{ docker_host_nvidia_driver_package }}"
+      - "{{ docker_host_nvidia_utils_package }}"
+    state: present
+    update_cache: true
+  when: docker_host_nvidia_enabled
+  notify: restart docker
+
+- name: Install NVIDIA container toolkit repository key
+  ansible.builtin.get_url:
+    url: https://nvidia.github.io/libnvidia-container/gpgkey
+    dest: /tmp/nvidia-container-toolkit.asc
+    mode: "0644"
+  when: docker_host_nvidia_enabled
+
+- name: Convert NVIDIA container toolkit key to a keyring
+  ansible.builtin.command:
+    argv:
+      - gpg
+      - --dearmor
+      - --yes
+      - --output
+      - /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+      - /tmp/nvidia-container-toolkit.asc
+  args:
+    creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  when: docker_host_nvidia_enabled
+
+- name: Add NVIDIA container toolkit APT repo
+  ansible.builtin.apt_repository:
+    repo: "{{ docker_host_nvidia_container_toolkit_repo }}"
+    filename: nvidia-container-toolkit
+    state: present
+  when: docker_host_nvidia_enabled
+
+- name: Install Docker CE
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+  notify: restart docker
+
+- name: Install NVIDIA container toolkit
+  ansible.builtin.apt:
+    name: nvidia-container-toolkit
+    state: present
+    update_cache: true
+  when: docker_host_nvidia_enabled
+  notify: restart docker
+
+- name: Deploy daemon.json
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "{{ docker_log_max_size }}",
+          "max-file": "{{ docker_log_max_file }}"
+        },
+        "no-new-privileges": true,
+        "userland-proxy": false,
+        "metrics-addr": "{{ docker_metrics_bind_address }}",
+        "userns-remap": "{{ docker_userns_remap }}"{% if docker_host_nvidia_enabled %},
+        "runtimes": {
+          "nvidia": {
+            "path": "nvidia-container-runtime",
+            "runtimeArgs": []
+          }
+        }{% endif %}
+      }
+    mode: "0644"
+  notify: restart docker
+
+- name: Enable Docker service
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Enable AppArmor
+  ansible.builtin.service:
+    name: apparmor
+    state: started
+    enabled: true
+
+- name: Create Portainer Agent deploy directory
+  ansible.builtin.file:
+    path: "{{ portainer_agent_deploy_path }}"
+    state: directory
+    mode: "0755"
+  when: portainer_agent_enabled
+
+- name: Create observability Docker proxy deploy directory
+  ansible.builtin.file:
+    path: "{{ observability_docker_proxy_deploy_path }}"
+    state: directory
+    mode: "0755"
+  when: observability_docker_proxy_enabled
+
+- name: Deploy observability Docker proxy compose file
+  ansible.builtin.template:
+    src: observability-docker-proxy-compose.yml.j2
+    dest: "{{ observability_docker_proxy_deploy_path }}/compose.yaml"
+    mode: "0644"
+  when: observability_docker_proxy_enabled
+
+- name: Start observability Docker proxy
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ observability_docker_proxy_deploy_path }}/compose.yaml"
+      - up
+      - -d
+  when: observability_docker_proxy_enabled
+
+- name: Deploy Portainer Agent compose file
+  ansible.builtin.template:
+    src: portainer-agent-compose.yml.j2
+    dest: "{{ portainer_agent_deploy_path }}/compose.yaml"
+    mode: "0644"
+  when: portainer_agent_enabled
+
+- name: Start Portainer Agent
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - -f
+      - "{{ portainer_agent_deploy_path }}/compose.yaml"
+      - up
+      - -d
+  when: portainer_agent_enabled
+
+- name: Check whether nvidia-smi is available after installation
+  ansible.builtin.command:
+    argv:
+      - nvidia-smi
+  register: docker_host_nvidia_smi_check
+  changed_when: false
+  failed_when: false
+  when: docker_host_nvidia_enabled
+
+- name: Show NVIDIA GPU runtime status
+  ansible.builtin.debug:
+    msg:
+      - "Selected NVIDIA driver package: {{ docker_host_nvidia_driver_package }}"
+      - "Selected NVIDIA utilities package: {{ docker_host_nvidia_utils_package }}"
+      - "nvidia-smi exit code: {{ docker_host_nvidia_smi_check.rc }}"
+      - >-
+        If nvidia-smi is not yet working, reboot the VM so the NVIDIA kernel
+        modules can load before starting Ollama containers.
+      - "Validation: docker run --rm --gpus=all nvidia/cuda:12.9.0-base-ubuntu24.04 nvidia-smi"
+  when: docker_host_nvidia_enabled

@@ -1,0 +1,92 @@
+---
+- name: Add GitLab Runner repo
+  ansible.builtin.shell: >
+    curl -sS https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh | bash
+  args:
+    creates: /etc/apt/sources.list.d/runner_gitlab-runner.list
+
+- name: Install gitlab-runner
+  ansible.builtin.apt:
+    name: gitlab-runner
+    state: present
+    update_cache: true
+
+- name: Enable and start gitlab-runner
+  ansible.builtin.service:
+    name: gitlab-runner
+    state: started
+    enabled: true
+
+- name: Try to install Sysbox when explicitly enabled
+  block:
+    - name: Get latest Sysbox release URL
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/nestybox/sysbox/releases/latest
+        return_content: true
+      register: sysbox_release
+
+    - name: Download Sysbox
+      ansible.builtin.get_url:
+        url: "{{ sysbox_release.json.assets | selectattr('name', 'match', '.*linux_amd64\\.deb$') | map(attribute='browser_download_url') | first }}"
+        dest: /tmp/sysbox.deb
+        mode: "0644"
+
+    - name: Install Sysbox
+      ansible.builtin.apt:
+        deb: /tmp/sysbox.deb
+        state: present
+      notify: restart docker
+
+    - name: Set sysbox_enabled fact
+      ansible.builtin.set_fact:
+        sysbox_enabled: true
+  when: sysbox_install_enabled | bool
+  rescue:
+    - name: Log Sysbox install failure
+      ansible.builtin.debug:
+        msg: "Sysbox not available; runner-dind will use privileged mode."
+
+    - name: Force sysbox off after install failure
+      ansible.builtin.set_fact:
+        sysbox_enabled: false
+
+# With glrt- authentication tokens the registration token is the runner token.
+# No need to parse it back from config.toml after register.
+
+- name: Check which runners are already registered
+  ansible.builtin.command: gitlab-runner list
+  register: registered_runners_raw
+  changed_when: false
+  failed_when: false
+
+- name: Register runners if not already registered
+  ansible.builtin.command: >
+    gitlab-runner register
+      --non-interactive
+      --url {{ gitlab_url }}
+      --token {{ item.token }}
+      --name "{{ item.name }}-{{ inventory_hostname }}"
+      --executor docker
+      --docker-image {{ item.docker_image }}
+  loop: "{{ gitlab_runners }}"
+  register: runner_registration
+  when: item.name + '-' + inventory_hostname not in (registered_runners_raw.stdout + registered_runners_raw.stderr)
+  failed_when: runner_registration.rc != 0
+  no_log: true
+
+- name: Deploy config.toml with full settings
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: /etc/gitlab-runner/config.toml
+    owner: gitlab-runner
+    mode: "0600"
+  notify: restart gitlab-runner
+
+- name: Docker prune cron (build-01 only)
+  ansible.builtin.cron:
+    name: docker-prune
+    minute: "0"
+    hour: "2"
+    job: docker system prune --all --force 2>&1 | logger -t docker-prune
+    user: root
+  when: inventory_hostname == 'build-01'

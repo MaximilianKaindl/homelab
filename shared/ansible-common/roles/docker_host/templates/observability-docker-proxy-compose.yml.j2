@@ -1,0 +1,34 @@
+---
+services:
+  docker_observability_proxy:
+    image: {{ observability_docker_proxy_image }}
+    container_name: docker-observability-socket-proxy
+    restart: unless-stopped
+    userns_mode: host
+    ports:
+      - "{{ observability_docker_proxy_bind_address }}:{{ observability_docker_proxy_port }}:2375"
+    environment:
+      CONTAINERS: 1
+      EVENTS: 1
+      IMAGES: 1
+      INFO: 1
+      NETWORKS: 1
+      VOLUMES: 0
+      POST: 0
+      AUTH: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      EXEC: 0
+      GRPC: 0
+      NODES: 0
+      PLUGINS: 0
+      SECRETS: 0
+      SERVICES: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      TASKS: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro

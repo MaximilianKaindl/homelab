@@ -1,0 +1,36 @@
+---
+- name: Configure apps-01 (Docker host)
+  hosts: pub_apps
+  gather_facts: true
+  pre_tasks:
+    - name: Wait for SSH to become available
+      ansible.builtin.wait_for_connection:
+        delay: 10
+        sleep: 5
+        timeout: 300
+  roles:
+    - base
+    - docker_host
+
+- name: Set up deploy user on apps-01
+  hosts: apps-01
+  gather_facts: false
+  roles:
+    - deploy_user
+
+- name: Prepare service deploy directories on apps-01
+  hosts: apps-01
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Create service deploy directories
+      ansible.builtin.file:
+        path: "/opt/{{ item }}"
+        state: directory
+        owner: deploy
+        group: deploy
+        mode: "0755"
+      loop:
+        - mailserver
+        - openwebui
+        - synapse

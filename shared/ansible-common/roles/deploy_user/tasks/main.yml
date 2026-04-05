@@ -1,0 +1,41 @@
+---
+- name: Create deploy user
+  ansible.builtin.user:
+    name: "{{ deploy_user_name }}"
+    shell: "{{ deploy_user_shell }}"
+    groups: "{{ deploy_user_groups }}"
+    append: true
+    create_home: true
+    state: present
+  when: deploy_user_enabled
+
+- name: Authorize deploy SSH key
+  ansible.posix.authorized_key:
+    user: "{{ deploy_user_name }}"
+    key: "{{ deploy_user_key }}"
+    state: present
+  when:
+    - deploy_user_enabled
+    - deploy_user_key | length > 0
+
+- name: Create deploy directories
+  ansible.builtin.file:
+    path: "{{ item.path | default(item) }}"
+    state: directory
+    owner: "{{ item.owner | default(deploy_user_name) }}"
+    group: "{{ item.group | default(deploy_user_name) }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop: "{{ deploy_user_directories }}"
+  when: deploy_user_enabled
+
+- name: Create deploy files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: touch
+    owner: "{{ item.owner | default(deploy_user_name) }}"
+    group: "{{ item.group | default(deploy_user_name) }}"
+    mode: "{{ item.mode | default('0644') }}"
+    modification_time: preserve
+    access_time: preserve
+  loop: "{{ deploy_user_files }}"
+  when: deploy_user_enabled

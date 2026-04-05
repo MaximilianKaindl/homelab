@@ -18,7 +18,7 @@ locals {
 }
 
 module "vm" {
-  source = "../../shared/proxmox-vm-module"
+  source = "../../../shared/proxmox-vm-module"
 
   vm_name              = local.vm.name
   vm_id                = local.vm.vm_id
@@ -34,7 +34,7 @@ module "vm" {
   vm_username          = var.vm_username
   vm_password          = var.vm_password
   ssh_public_keys      = var.ssh_public_keys
-  dns_servers          = ["192.168.60.10", local.vm.ipv4_gateway]
+  dns_servers          = var.dns_servers
   search_domain        = var.search_domain
   ipv4_address         = local.vm.ipv4_address
   ipv4_gateway         = local.vm.ipv4_gateway

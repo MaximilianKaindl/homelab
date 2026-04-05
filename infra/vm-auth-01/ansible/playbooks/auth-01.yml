@@ -1,0 +1,14 @@
+---
+# Playbook: auth-01 — base + Docker host + deploy user
+- name: Configure auth-01 (Docker host)
+  hosts: identity
+  gather_facts: true
+  roles:
+    - base
+    - docker_host
+
+- name: Set up deploy user on auth-01
+  hosts: auth-01
+  gather_facts: false
+  roles:
+    - deploy_user

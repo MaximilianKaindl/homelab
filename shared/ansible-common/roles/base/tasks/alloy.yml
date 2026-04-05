@@ -1,0 +1,45 @@
+---
+- name: Add Grafana APT key
+  ansible.builtin.get_url:
+    url: https://apt.grafana.com/gpg.key
+    dest: /etc/apt/keyrings/grafana.asc
+    mode: "0644"
+
+- name: Add Grafana APT repo
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/grafana.asc] https://apt.grafana.com stable main"
+    filename: grafana
+    state: present
+
+- name: Install Grafana Alloy
+  ansible.builtin.apt:
+    name: alloy
+    state: present
+    update_cache: true
+
+- name: Create alloy user
+  ansible.builtin.user:
+    name: "{{ alloy_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/alloy
+
+- name: Add alloy user to adm group (read /var/log)
+  ansible.builtin.user:
+    name: "{{ alloy_user }}"
+    groups: adm
+    append: true
+
+- name: Deploy Alloy config
+  ansible.builtin.template:
+    src: alloy.river.j2
+    dest: /etc/alloy/config.alloy
+    owner: "{{ alloy_user }}"
+    mode: "0640"
+  notify: reload alloy
+
+- name: Enable Alloy service
+  ansible.builtin.service:
+    name: alloy
+    state: started
+    enabled: true

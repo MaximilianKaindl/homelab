@@ -1,0 +1,6 @@
+---
+- name: Configure git-01 (GitLab CE)
+  hosts: code
+  gather_facts: true
+  roles:
+    - base

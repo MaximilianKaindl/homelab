@@ -1,0 +1,6 @@
+---
+runner_concurrent: 4
+runner_check_interval: 0
+runner_cache_dir: /cache
+sysbox_enabled: false
+sysbox_install_enabled: false

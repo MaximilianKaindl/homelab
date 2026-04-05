@@ -1,0 +1,11 @@
+---
+- name: Download homelab root CA bundle
+  ansible.builtin.get_url:
+    url: "{{ ca_root_url }}"
+    dest: /usr/local/share/ca-certificates/ca-home-arpa-root.crt
+    validate_certs: false
+    mode: "0644"
+
+- name: Update CA trust store
+  ansible.builtin.command: update-ca-certificates
+  changed_when: true

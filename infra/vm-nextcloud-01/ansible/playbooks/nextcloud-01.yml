@@ -1,0 +1,55 @@
+---
+- name: Configure nextcloud-01 (Docker host)
+  hosts: nextcloud-01
+  gather_facts: true
+  pre_tasks:
+    - name: Wait for SSH to become available
+      ansible.builtin.wait_for_connection:
+        delay: 10
+        sleep: 5
+        timeout: 300
+  roles:
+    - base
+    - docker_host
+
+- name: Mount nextcloud data disk
+  hosts: nextcloud-01
+  gather_facts: true
+  tasks:
+    - name: Create ext4 filesystem on data disk
+      community.general.filesystem:
+        fstype: ext4
+        dev: "{{ data_disk_device }}"
+      when: data_disk_device is defined
+      ignore_errors: true
+
+    - name: Create mount point
+      ansible.builtin.file:
+        path: "{{ data_disk_mount }}"
+        state: directory
+        mode: "0755"
+      when: data_disk_mount is defined
+
+    - name: Mount data disk
+      ansible.posix.mount:
+        path: "{{ data_disk_mount }}"
+        src: "{{ data_disk_device }}"
+        fstype: ext4
+        opts: defaults,noatime
+        state: mounted
+      when: data_disk_device is defined and data_disk_mount is defined
+
+    - name: Create Nextcloud data directory
+      ansible.builtin.file:
+        path: "{{ data_disk_mount }}/nextcloud-data"
+        state: directory
+        owner: "33"
+        group: "33"
+        mode: "0750"
+      when: data_disk_mount is defined
+
+- name: Set up deploy user on nextcloud-01
+  hosts: nextcloud-01
+  gather_facts: false
+  roles:
+    - deploy_user

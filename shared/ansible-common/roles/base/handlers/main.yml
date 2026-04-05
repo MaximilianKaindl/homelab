@@ -1,0 +1,27 @@
+---
+- name: restart ssh
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+
+- name: restart fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted
+
+- name: reload alloy
+  ansible.builtin.service:
+    name: alloy
+    state: reloaded
+
+- name: restart qemu-guest-agent
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    state: restarted
+
+- name: generate locale
+  ansible.builtin.command: locale-gen
+  changed_when: true
+
+- name: reload sysctl
+  ansible.builtin.command: sysctl --system

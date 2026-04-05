@@ -1,0 +1,82 @@
+// Grafana Alloy config for {{ inventory_hostname }} (Proxmox VE host)
+
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+// ── Log collection ────────────────────────────────────────────────────────────
+
+local.file_match "var_log" {
+  path_targets = [
+    {"__path__" = "/var/log/syslog",        "job" = "syslog"},
+    {"__path__" = "/var/log/auth.log",       "job" = "auth"},
+    {"__path__" = "/var/log/pveproxy.log",   "job" = "pveproxy"},
+    {"__path__" = "/var/log/pvedaemon.log",  "job" = "pvedaemon"},
+    {"__path__" = "/var/log/pve-firewall.log", "job" = "pve-firewall"},
+  ]
+}
+
+loki.source.file "var_log" {
+  targets    = local.file_match.var_log.targets
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.source.journal "journal" {
+  forward_to    = [loki.relabel.journal.receiver]
+  relabel_rules = loki.relabel.journal.rules
+}
+
+loki.relabel "journal" {
+  forward_to = [loki.write.default.receiver]
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+  rule {
+    source_labels = ["__journal__hostname"]
+    target_label  = "host"
+  }
+}
+
+loki.write "default" {
+  endpoint {
+    url = "{{ loki_url }}/loki/api/v1/push"
+    // tenant_id is enforced by lgtm-gateway based on source IP
+  }
+  external_labels = {
+    host = "{{ inventory_hostname }}",
+  }
+}
+
+// ── Metrics collection ────────────────────────────────────────────────────────
+
+prometheus.exporter.unix "node" {}
+
+discovery.relabel "node" {
+  targets = prometheus.exporter.unix.node.targets
+
+  rule {
+    target_label = "instance"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "integrations/node_exporter"
+  }
+}
+
+prometheus.scrape "node" {
+  targets         = discovery.relabel.node.output
+  forward_to      = [prometheus.remote_write.mimir.receiver]
+  scrape_interval = "60s"
+}
+
+prometheus.remote_write "mimir" {
+  endpoint {
+    url = "{{ mimir_url }}/api/v1/push"
+    // X-Scope-OrgID is enforced by lgtm-gateway based on source IP
+  }
+}
