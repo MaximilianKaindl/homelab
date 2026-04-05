@@ -7,7 +7,19 @@ This is a work in progress. The long-term aim is maximum reproducibility and str
 ## What is currently public
 
 - reusable Terraform modules under `shared/`
+- selected real code that is useful without exposing live environment topology
 - top-level documentation and repository guardrails
+
+## Included Code
+
+The current public set intentionally includes only code that remains useful after removing environment-specific control-plane details:
+
+- reusable Proxmox VM and LXC Terraform modules
+- an AI-host helper for container sandbox authorization
+- an NVIDIA + Ollama host setup playbook
+- a small Ollama service payload
+- a Vault service payload with policy and seed examples
+- agent-bootstrap helper scripts that do not embed internal registry or routing details
 
 ## What is intentionally missing
 

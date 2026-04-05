@@ -67,12 +67,51 @@ bootstrap/*
 
 infra/*
 !infra/README.md
+!infra/vm-ai-ubuntu-01/
+infra/vm-ai-ubuntu-01/*
+!infra/vm-ai-ubuntu-01/README.md
+!infra/vm-ai-ubuntu-01/ansible/
+infra/vm-ai-ubuntu-01/ansible/*
+!infra/vm-ai-ubuntu-01/ansible/README.md
+!infra/vm-ai-ubuntu-01/ansible/files/
+infra/vm-ai-ubuntu-01/ansible/files/*
+!infra/vm-ai-ubuntu-01/ansible/files/openclaw_sandbox_authz.py
+!infra/vm-ai-ubuntu-01/ansible/playbooks/
+infra/vm-ai-ubuntu-01/ansible/playbooks/*
+!infra/vm-ai-ubuntu-01/ansible/playbooks/ai-ubuntu-01-nvidia-ollama.yml
 
 services/*
 !services/README.md
+!services/ollama/
+services/ollama/*
+!services/ollama/README.md
+!services/ollama/docker/
+services/ollama/docker/*
+!services/ollama/docker/docker-compose.yml
+!services/ollama/docker/ollama-entrypoint.sh
+!services/vault/
+services/vault/*
+!services/vault/README.md
+!services/vault/docker/
+services/vault/docker/*
+!services/vault/docker/docker-compose.yml
+!services/vault/docker/vault-config.hcl
+!services/vault/policies/
+services/vault/policies/*
+!services/vault/policies/*.hcl
+!services/vault/seeds/
+services/vault/seeds/*
+!services/vault/seeds/*.example.json
+!services/openclaw-agent-setup/
+services/openclaw-agent-setup/*
+!services/openclaw-agent-setup/README.md
+!services/openclaw-agent-setup/scripts/
+services/openclaw-agent-setup/scripts/*
+!services/openclaw-agent-setup/scripts/build_agent_payload.py
+!services/openclaw-agent-setup/scripts/render_agent_setup.py
+!services/openclaw-agent-setup/scripts/apply_payload_in_container.py
 
 traefik/*
-!traefik/README.md
 
 shared/ansible-common/
 shared/gitlab-cicd-group-vars.yml

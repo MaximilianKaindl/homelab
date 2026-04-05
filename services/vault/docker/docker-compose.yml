@@ -1,0 +1,37 @@
+---
+services:
+  vault:
+    image: hashicorp/vault:1.19
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_API_ADDR: http://vault:8200
+    command:
+      - server
+    volumes:
+      - vault-data:/vault/file
+      - ./vault-config.hcl:/vault/config/vault.hcl:ro
+    ports:
+      - "127.0.0.1:8200:8200"
+    networks:
+      - ai
+    healthcheck:
+      test:
+        - CMD
+        - vault
+        - status
+        - -address=http://127.0.0.1:8200
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  ai:
+    name: ai-ubuntu-01_ai
+    external: true
+
+volumes:
+  vault-data:
