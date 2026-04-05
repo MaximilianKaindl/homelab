@@ -7,22 +7,22 @@ Infrastructure-as-code for a self-hosted homelab running on Proxmox VE. Everythi
 ```
 Proxmox VE
 ├── bootstrap/
-│   ├── vm-build-01     GitLab runner host — executes all CI/CD pipelines (VLAN 10)
-│   └── vm-git-01       Self-hosted GitLab CE — source of truth for all deployments (VLAN 40)
+│   ├── vm-build-01     GitLab runner host — executes all CI/CD pipelines
+│   └── vm-git-01       Self-hosted GitLab CE — source of truth for all deployments
 │
 ├── infra/                              VMs
-│   ├── vm-edge-01          Traefik reverse proxy, Crowdsec, public TLS termination (VLAN 100)
-│   ├── vm-ai-ubuntu-01     OpenClaw agent stack — Ollama, OpenWebUI, GPU passthrough (VLAN 20)
-│   ├── vm-apps-01          Mattermost, Synapse (Matrix), Docmost (VLAN 110)
-│   ├── vm-auth-01          Authentik SSO + Postgres + Redis (VLAN 120)
-│   ├── vm-monitor-01       Grafana, Loki, Mimir, Tempo — full LGTM stack (VLAN 50)
-│   └── vm-nextcloud-01     Nextcloud + Postgres + Redis (VLAN 110)
+│   ├── vm-edge-01          Traefik reverse proxy, Crowdsec, public TLS termination
+│   ├── vm-ai-ubuntu-01     OpenClaw agent stack — Ollama, OpenWebUI, GPU passthrough
+│   ├── vm-apps-01          Mattermost, Synapse (Matrix), Docmost
+│   ├── vm-auth-01          Authentik SSO + Postgres + Redis
+│   ├── vm-monitor-01       Grafana, Loki, Mimir, Tempo — full LGTM stack
+│   └── vm-nextcloud-01     Nextcloud + Postgres + Redis
 │
 │                                       LXCs
-│   ├── lxc-dns-01          AdGuard Home — internal DNS resolver (VLAN 60)
+│   ├── lxc-dns-01          AdGuard Home — internal DNS resolver
 │   ├── lxc-pki-01          Step CA — internal PKI, issues TLS certs for all services
 │   ├── lxc-pbs-01          Proxmox Backup Server — VM and LXC backups
-│   └── lxc-internal-01     Internal shared platform services (VLAN 30)
+│   └── lxc-internal-01     Internal shared platform services
 │
 └── shared/
     ├── proxmox-vm-module       Reusable Terraform module for Proxmox VMs
