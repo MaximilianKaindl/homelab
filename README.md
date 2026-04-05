@@ -41,7 +41,7 @@ Proxmox VE
 | Identity | Authentik (OIDC/SAML for all services) |
 | Reverse proxy | Traefik (internal + edge) |
 | Observability | Grafana · Loki · Mimir · Tempo · Alloy |
-| Secret management | HashiCorp Vault |
+| Secret management | GitLab CI/CD variables (infra) · HashiCorp Vault (OpenClaw agent) |
 | Networking | VLAN segmentation via UniFi |
 | DNS | AdGuard Home (internal) + Cloudflare (external) |
 | PKI | Step CA — internal TLS for all services |
