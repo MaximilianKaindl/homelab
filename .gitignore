@@ -1,0 +1,72 @@
+# Terraform state and local plans
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+*.tfvars
+*.tfvars.json
+tfplan
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+*.local.*
+*.secret
+*.secrets
+*.pem
+*.key
+*.p12
+*.pfx
+*.ovpn
+*.agekey
+*.enc
+
+# Certificates and trust stores
+traefik/certs/
+traefik/*.crt
+traefik/*.key
+traefik/.env
+
+# Private inventories and vault material
+**/inventories/
+**/group_vars/**/vault*.yml
+**/host_vars/
+**/hosts.yml
+
+# Assistant/editor/local machine files
+.claude/
+.codex-temp/
+.DS_Store
+Thumbs.db
+__pycache__/
+.gocache/
+.gotmp/
+*.tmp
+*.bak
+*.rej
+{changed*
+
+# Service-specific local files
+openclaw/deploy/
+services/mailserver/docker/mailserver.env
+bootstrap/vm-git-01/docker/.env
+
+# Public repo exclusions
+# These paths contain environment-specific network topology, DNS records,
+# firewall policy, host addressing, and deployment details.
+bootstrap/
+infra/
+services/
+traefik/
+shared/ansible-common/
+shared/gitlab-cicd-group-vars.yml
+shared/terraform-ci-template.yml
